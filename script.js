@@ -77,23 +77,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Generate QR Code - FIXED VERSION for qrcodejs library
+    // Generate QR Code untuk qrcodejs library
     function generateQRCode(text) {
         // Clear previous QR code
         qrcodeDiv.innerHTML = '';
         
-        // Create new QR code using qrcodejs library
+        // Create new QR code
         new QRCode(qrcodeDiv, {
             text: text,
             width: 300,
             height: 300,
             colorDark: "#000000",
-            colorLight: "#ffffff",
+            colorLight: "#FFFFFF",
             correctLevel: QRCode.CorrectLevel.H
         });
     }
     
-    // Download function - UPDATED for qrcodejs
+    // Download function
     function downloadCode() {
         const text = inputText.value.trim();
         if (!text) {
@@ -110,6 +110,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function downloadBarcode(text) {
         const svg = document.getElementById('barcode');
+        
+        if (!svg || svg.childNodes.length === 0) {
+            alert('Generate barcode terlebih dahulu!');
+            return;
+        }
+        
         const xml = new XMLSerializer().serializeToString(svg);
         const svgBlob = new Blob([xml], {type: 'image/svg+xml;charset=utf-8'});
         const url = URL.createObjectURL(svgBlob);
@@ -117,29 +123,49 @@ document.addEventListener('DOMContentLoaded', function() {
         const img = new Image();
         img.onload = function() {
             const canvas = document.createElement('canvas');
-            canvas.width = svg.clientWidth;
-            canvas.height = svg.clientHeight + (showValue.checked ? 40 : 0);
+            
+            // Set canvas dimensions
+            canvas.width = svg.clientWidth || 400;
+            canvas.height = (svg.clientHeight || 100) + (showValue.checked ? 40 : 0);
+            
             const ctx = canvas.getContext('2d');
             
+            // Fill white background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
             // Draw barcode
-            ctx.drawImage(img, 0, 0);
+            ctx.drawImage(img, 0, 0, canvas.width, svg.clientHeight || 100);
             
             // Draw value if checked
             if (showValue.checked) {
                 ctx.font = '14px Arial';
                 ctx.fillStyle = '#000000';
                 ctx.textAlign = 'center';
-                ctx.fillText(text, canvas.width / 2, svg.clientHeight + 25);
+                ctx.fillText(text, canvas.width / 2, (svg.clientHeight || 100) + 25);
             }
             
-            downloadCanvas(canvas, 'barcode.png');
+            // Download
+            const link = document.createElement('a');
+            link.download = 'barcode.png';
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
             URL.revokeObjectURL(url);
         };
+        
+        img.onerror = function() {
+            alert('Error memproses barcode!');
+            URL.revokeObjectURL(url);
+        };
+        
         img.src = url;
     }
     
     function downloadQRCode(text) {
-        // Get the QR code element (could be canvas, img, or div with SVG)
+        // Get QR code element
         const qrElement = qrcodeDiv.firstChild;
         
         if (!qrElement) {
@@ -152,21 +178,60 @@ document.addEventListener('DOMContentLoaded', function() {
         canvas.height = 300 + (showValue.checked ? 40 : 0);
         const ctx = canvas.getContext('2d');
         
-        // Fill background
+        // Fill white background
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Draw QR code based on element type
+        // Function to draw QR code and download
+        const drawAndDownload = () => {
+            // Draw value if checked
+            if (showValue.checked) {
+                ctx.font = '14px Arial';
+                ctx.fillStyle = '#000000';
+                ctx.textAlign = 'center';
+                ctx.fillText(text, canvas.width / 2, 300 + 25);
+            }
+            
+            // Download
+            const link = document.createElement('a');
+            link.download = 'qrcode.png';
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+        
+        // Check element type and draw accordingly
         if (qrElement.tagName === 'CANVAS') {
-            // If it's already a canvas
+            // If QR code is canvas
             ctx.drawImage(qrElement, 0, 0);
+            drawAndDownload();
         } else if (qrElement.tagName === 'IMG') {
-            // If it's an image
+            // If QR code is image
             ctx.drawImage(qrElement, 0, 0);
-        } else if (qrElement.tagName === 'SVG' || qrElement.querySelector('svg')) {
-            // If it's SVG (qrcodejs creates SVG in some cases)
-            const svg = qrElement.tagName === 'SVG' ? qrElement : qrElement.querySelector('svg');
-            const svgString = new XMLSerializer().serializeToString(svg);
+            drawAndDownload();
+        } else {
+            // If QR code is SVG or div containing SVG
+            let svgElement;
+            
+            if (qrElement.tagName === 'SVG') {
+                svgElement = qrElement;
+            } else if (qrElement.querySelector('svg')) {
+                svgElement = qrElement.querySelector('svg');
+            } else {
+                // Fallback: draw simple QR code
+                ctx.fillStyle = '#000000';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('QR Code', 150, 140);
+                ctx.font = '12px Arial';
+                ctx.fillText(text.substring(0, 30), 150, 160);
+                drawAndDownload();
+                return;
+            }
+            
+            // Convert SVG to image
+            const svgString = new XMLSerializer().serializeToString(svgElement);
             const svgBlob = new Blob([svgString], {type: 'image/svg+xml'});
             const url = URL.createObjectURL(svgBlob);
             
@@ -174,53 +239,16 @@ document.addEventListener('DOMContentLoaded', function() {
             img.onload = function() {
                 ctx.drawImage(img, 0, 0, 300, 300);
                 URL.revokeObjectURL(url);
-                
-                // Draw value if checked
-                if (showValue.checked) {
-                    ctx.font = '14px Arial';
-                    ctx.fillStyle = '#000000';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(text, canvas.width / 2, 300 + 25);
-                }
-                
-                downloadCanvas(canvas, 'qrcode.png');
+                drawAndDownload();
             };
+            
+            img.onerror = function() {
+                URL.revokeObjectURL(url);
+                alert('Error memproses QR code!');
+            };
+            
             img.src = url;
-            return; // Exit early, download will happen in img.onload
-        } else {
-            // Fallback: create QR code directly on canvas
-            createQRCodeOnCanvas(ctx, text, 0, 0, 300);
         }
-        
-        // Draw value if checked
-        if (showValue.checked) {
-            ctx.font = '14px Arial';
-            ctx.fillStyle = '#000000';
-            ctx.textAlign = 'center';
-            ctx.fillText(text, canvas.width / 2, 300 + 25);
-        }
-        
-        downloadCanvas(canvas, 'qrcode.png');
-    }
-    
-    // Helper function to create QR code directly on canvas (fallback)
-    function createQRCodeOnCanvas(ctx, text, x, y, size) {
-        // Simple fallback QR code (just for demonstration)
-        ctx.fillStyle = '#000000';
-        ctx.font = '20px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('QR Code', x + size/2, y + size/2);
-        ctx.font = '12px Arial';
-        ctx.fillText(text.substring(0, 20) + '...', x + size/2, y + size/2 + 30);
-    }
-    
-    function downloadCanvas(canvas, filename) {
-        const link = document.createElement('a');
-        link.download = filename;
-        link.href = canvas.toDataURL('image/png');
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
     }
     
     // Enter key support
